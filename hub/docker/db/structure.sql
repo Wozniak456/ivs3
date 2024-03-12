@@ -1,4 +1,4 @@
-CREATE TABLE processed_agent_data (
+CREATE TABLE processed_agent_data(
     id SERIAL PRIMARY KEY,
     road_state VARCHAR(255) NOT NULL,
     user_id INTEGER NOT NULL,
@@ -7,5 +7,5 @@ CREATE TABLE processed_agent_data (
     z FLOAT,
     latitude FLOAT,
     longitude FLOAT,
-    timestamp TIMESTAMP
+    timestamp DATETIME
 );
