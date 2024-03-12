@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import List
 
 from fastapi import FastAPI
@@ -39,10 +40,16 @@ app = FastAPI()
 
 @app.post("/processed_agent_data/")
 async def save_processed_agent_data(processed_agent_data: ProcessedAgentData):
-    processed_agent_data.agent_data.timestamp = processed_agent_data.agent_data.timestamp.isoformat()
+    processed_agent_data.agent_data.timestamp = datetime.utcnow().isoformat()
     redis_client.lpush("processed_agent_data", json.dumps(processed_agent_data.dict()))
     if redis_client.llen("processed_agent_data") >= BATCH_SIZE:
-        processed_agent_data_batch: List[ProcessedAgentData] = []
+        process_data_in_batches()
+    return {"status": "ok"}
+
+
+def process_data_in_batches():
+    processed_agent_data_batch: List[ProcessedAgentData] = []
+    while redis_client.llen("processed_agent_data") >= BATCH_SIZE:
         for _ in range(BATCH_SIZE):
             processed_agent_data_json = redis_client.lpop("processed_agent_data")
             processed_agent_data_dict = json.loads(processed_agent_data_json)
@@ -50,8 +57,6 @@ async def save_processed_agent_data(processed_agent_data: ProcessedAgentData):
             logging.info('processed_agent_data: %s', processed_agent_data)
             processed_agent_data_batch.append(processed_agent_data)
         store_adapter.save_data(processed_agent_data_batch=processed_agent_data_batch)
-    return {"status": "ok"}
-
 
 
 # MQTT
@@ -77,17 +82,14 @@ def on_message(client, userdata, msg):
         redis_client.lpush(
             "processed_agent_data", processed_agent_data.model_dump_json()
         )
-        processed_agent_data_batch: List[ProcessedAgentData] = []
+
         if redis_client.llen("processed_agent_data") >= BATCH_SIZE:
-            for _ in range(BATCH_SIZE):
-                processed_agent_data = ProcessedAgentData.model_validate_json(
-                    redis_client.lpop("processed_agent_data")
-                )
-                processed_agent_data_batch.append(processed_agent_data)
-        store_adapter.save_data(processed_agent_data_batch=processed_agent_data_batch)
-        return {"status": "ok"}
+            process_data_in_batches()
+
+        # Acknowledge the message
+        client.publish("acknowledgment_topic", "Message received and processed")
     except Exception as e:
-        logging.info(f"Error processing MQTT message: {e}")
+        logging.error(f"Error processing MQTT message: {e}")
 
 
 # Connect
@@ -97,3 +99,7 @@ client.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
 # Start
 client.loop_start()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

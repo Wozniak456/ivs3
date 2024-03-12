@@ -17,7 +17,6 @@ services:
     networks:
       db_network:
 
-
   pgadmin:
     container_name: pgadmin4
     image: dpage/pgadmin4
@@ -31,7 +30,6 @@ services:
       - "5050:80"
     networks:
       db_network:
-
 
   store:
     container_name: store
@@ -49,12 +47,8 @@ services:
       - "8000:8000"
     networks:
       db_network:
-
-
 networks:
   db_network:
-
-
 volumes:
   postgres_data:
   pgadmin-data:

@@ -16,16 +16,17 @@ class StoreApiAdapter(StoreGateway):
         """
         Save the processed road data to the Store API.
         Parameters:
-            processed_agent_data_batch (List[ProcessedAgentData]): Processed road data to be saved.
+            processed_agent_data_batch (dict): Processed road data to be saved.
         Returns:
             bool: True if the data is successfully saved, False otherwise.
         """
-        data = [item.model_dump() for item in processed_agent_data_batch]
-
-        try:
-            response = requests.post(f"{self.api_base_url}/processed_agent_data/", json=data)
-            response.raise_for_status()  # Raise exception for non-200 status codes
-            return True
-        except requests.RequestException as e:
-            logging.error(f"Error while saving data to Store API: {e}")
-            return False
+        for item in processed_agent_data_batch:
+            # Serialize datetime object to ISO format
+            item.agent_data.timestamp = item.agent_data.timestamp.isoformat()
+            try:
+                response = requests.post(f"{self.api_base_url}/processed_agent_data/", json=item.model_dump())
+                response.raise_for_status()
+            except requests.RequestException as e:
+                logging.error(f"Error while saving data to Store API: {e}. Data : {item.model_dump()}")
+                return False
+        return True
